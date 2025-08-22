@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Will Pearce — Home</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="images/favicon.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="images/favicon.png" sizes="16x16">
+  <link rel="icon" type="image/x-icon" href="images/favicon.ico">
+  <link rel="shortcut icon" href="images/favicon.ico">
+
+  <!-- Meta -->
+  <meta name="description" content="Will Pearce Photography">
+  <meta property="og:title" content="Will Pearce — Home">
+  <meta property="og:description" content="Will Pearce Photography">
+  <meta property="og:image" content="images/preview.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://yourdomain.com/">
+
+  <style>
+    html, body {
+      margin:0; padding:0; width:100%; height:100%;
+      background:black; overflow-x:hidden; font-family:Arial, sans-serif;
+    }
+
+    /* Preloader (black screen) */
+    #preloader {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 10000;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 450ms ease, visibility 0s linear 450ms;
+    }
+    #preloader.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+    /* allows us to disable the fade when load is instant */
+    #preloader.no-transition { transition: none !important; }
+
+    /* Collage BELOW ribbon (ribbon has higher z from ribbon.js) */
+    #collageContainer {
+      position: relative;
+      width: 100vw;
+      height: 70vh;
+      background:black;
+      overflow: visible;  /* allow flowers under ribbon */
+      z-index:100;        /* below ribbon */
+    }
+    #collageContainer img.collage-item {
+      position:absolute;
+      opacity:0;
+      /* transition duration set dynamically to FADE_TIME */
+      user-select:none;
+      z-index:20;
+      will-change: opacity, transform;
+    }
+
+    /* Title + halo (injected via JS) */
+    .center-text {
+      position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+      color:#fff; pointer-events:none; user-select:none; z-index:30; text-align:center;
+      font-family:"Helvetica Neue", Arial, sans-serif;
+    }
+    .center-text .title {
+      margin: 0;
+      display: inline-block;  /* accurate width measure */
+      white-space: nowrap;
+      font-weight: 700;
+      /* font-size set by JS fitter (targets 10vh, capped at 85vw) */
+    }
+
+    /* Page content (filled by scripts/index.js) */
+    #introSection {
+      position:relative; z-index:200; background:#fff; padding:2rem; color:#333;
+    }
+    #introSection p { max-width:800px; margin:1rem auto; line-height:1.6; }
+  </style>
+
+  <!-- Data + Config + Ribbons -->
+  <script src="config/collage/collage_data.js"></script>
+  <script src="config/nav.config.js"></script>
+  <script src="scripts/ribbon.js"></script>
+  <script src="scripts/bottomRibbon.js"></script>
+</head>
+<body>
+
+  <!-- Preloader overlay -->
+  <div id="preloader" aria-hidden="true"></div>
+
+  <!-- Build the semi-transparent home ribbon (no left logo on home) -->
+  <script> buildTopRibbon({ isHome: true }); </script>
+
+  <div id="collageContainer">
+    <div class="center-text"><h1 class="title">Will Pearce</h1></div>
+  </div>
+
+  <!-- Page content injected by scripts/index.js -->
+  <section id="introSection"></section>
+
+  <!-- Bottom ribbon placeholder -->
+  <div id="bottomRibbon"></div>
+
+  <script>
+  (function () {
+    // ---------- CONFIG ----------
+    const COLLAGE_W = 7500, COLLAGE_H = 7500;     // source collage size
+    const IMAGES_DIR = 'images/collage/';
+
+    const PICK_MODE   = 'random';   // 'random' or 'top'
+
+    // Fade timing:
+    // FADE_TIME  = how long each batch takes to fade in
+    // FADE_DELAY = delay between the START times of batches
+    const FADE_TIME   = 550;        // ms to reach opacity:1
+    const FADE_DELAY  = 70;         // ms between batch starts
+    const BATCH_SIZE  = 4;          // images per batch
+
+    // Ordering of fade-ins
+    const ORDER_TOP_DOWN  = false;  // true => sort by top then left
+
+    // Average image minimums (fractions of viewport):
+    const AVG_W_PCT   = 0.07;
+    const AVG_H_PCT   = 0.09;
+
+    // Allow scaling above native to satisfy constraints?
+    const ALLOW_UPSCALE   = true;
+
+    // Culling toggles (based on VIEWPORT + ribbon)
+    const CULL_OFFSCREEN        = true;  // master switch
+    const CULL_TOP_BY_MIDPOINT  = false; // true: cull if midpointY < ribbonBottom; false: cull if bottomY <= ribbonBottom
+    const CULL_BOTTOM           = true;  // cull if fully below viewport
+    const MAX_IMAGES_AFTER_CULL = 0;     // 0 = no cap
+
+    // Preloader behavior
+    const PRELOAD_LIMIT   = 96;    // how many *visible* images to preload before showing page
+    const INSTANT_HIDE_MS = 200;   // if precache < 200ms => remove preloader without fade
+    const HARD_TIMEOUT_MS = 5000;  // safety: hide preloader even if something stalls
+
+    // Halo config
+    const HALO = { enabled:true, layers:24, maxBlur:24, startOpacity:0.6, endOpacity:0.15 };
+    // ----------------------------
+
+    const container = document.getElementById('collageContainer');
+    const titleEl   = document.querySelector('.center-text .title');
+
+    function clearCollage(){
+      container.querySelectorAll('img.collage-item').forEach(n=>n.remove());
+    }
+
+    // Halo around title
+    function applyHalo() {
+      if (!HALO.enabled || !titleEl) return;
+      const { layers: L, maxBlur: maxB, startOpacity: a0, endOpacity: a1 } = HALO;
+      const shadows = [];
+      for (let i = 1; i <= L; i++) {
+        const t = i / L;
+        shadows.push(`0 0 ${(t*maxB).toFixed(2)}px rgba(0,0,0,${(a0+(a1-a0)*t).toFixed(3)})`);
+      }
+      titleEl.style.textShadow = shadows.join(',');
+    }
+
+    // Scale to keep average image sizes readable and ensure smallest collage side covers longest viewport side
+    function getScale(entry) {
+      const vw = Math.max(1, window.innerWidth);
+      const vh = Math.max(1, window.innerHeight);
+      const avg_w_src = Math.max(1, entry.avg_w || 1);
+      const avg_h_src = Math.max(1, entry.avg_h || 1);
+
+      const s_req_w = (AVG_W_PCT*vw)/avg_w_src;
+      const s_req_h = (AVG_H_PCT*vh)/avg_h_src;
+      let s = Math.max(s_req_w, s_req_h);
+
+      const screenLongest   = Math.max(vw, vh);
+      const collageSmallest = Math.min(COLLAGE_W, COLLAGE_H);
+      s = Math.max(s, screenLongest / collageSmallest);
+
+      if (!ALLOW_UPSCALE) s = Math.min(s, 1);
+      if (!isFinite(s) || s <= 0) s = 0.0001;
+      return s;
+    }
+
+    // Build placements and cull using VIEWPORT coordinates (includes ribbon)
+    function buildPlacements(entry) {
+      const scale = getScale(entry);
+
+      // Collage scaled & centered in container space
+      const cw = container.clientWidth;
+      const ch = container.clientHeight;
+      const scaledW = COLLAGE_W * scale;
+      const scaledH = COLLAGE_H * scale;
+      const offsetX = (cw - scaledW) / 2;
+      const offsetY = (ch - scaledH) / 2;
+
+      // Convert to viewport coords via getBoundingClientRect
+      const containerRect = container.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Ribbon bottom in viewport coords
+      const ribbonEl = document.getElementById('topRibbon');
+      const ribbonBottom = ribbonEl ? ribbonEl.getBoundingClientRect().top : 0;
+
+      const out = [];
+      for (const [filename, arr] of Object.entries(entry.image_data)) {
+        const [x, y, l, w] = arr;
+
+        // container-space placement
+        const left   = offsetX + x * scale;
+        const top    = offsetY + y * scale;
+        const width  = w * scale;
+        const height = l * scale;
+
+        // viewport-space rect
+        const leftV   = containerRect.left + left;
+        const topV    = containerRect.top  + top;
+        const rightV  = leftV + width;
+        const bottomV = topV  + height;
+        const midYV   = topV  + height / 2;
+
+        if (CULL_OFFSCREEN) {
+          // Cull fully left or right of the viewport
+          if (rightV <= 0 || leftV >= vw) continue;
+
+          // TOP cull: relative to ribbon bottom in viewport
+          if (CULL_TOP_BY_MIDPOINT) {
+            if (midYV < ribbonBottom) continue;      // midpoint above ribbon
+          } else {
+            if (bottomV <= ribbonBottom) continue;   // entirely above ribbon
+          }
+
+          // BOTTOM cull: relative to viewport bottom
+          if (CULL_BOTTOM && topV >= vh) continue;   // entirely below viewport
+        }
+
+        out.push({ filename, left, top, width, height });
+      }
+
+      if (MAX_IMAGES_AFTER_CULL > 0 && out.length > MAX_IMAGES_AFTER_CULL) {
+        out.sort((a,b)=> (b.width*b.height) - (a.width*a.height));
+        return out.slice(0, MAX_IMAGES_AFTER_CULL);
+      }
+
+      if (ORDER_TOP_DOWN) {
+        out.sort((a, b) => (a.top - b.top) || (a.left - b.left));
+      }
+      return out;
+    }
+
+    // Overlapping batch fade:
+    // - Each image uses transition: opacity FADE_TIME ms
+    // - Batches are *started* every FADE_DELAY ms
+    async function renderWithOverlappingBatches(placements) {
+      const t0 = performance.now();
+
+      const createAndSchedule = async (p, index) => {
+        const img = new Image();
+        img.className = 'collage-item';
+        img.decoding = 'async';
+        img.loading  = 'eager';
+        img.src = IMAGES_DIR + p.filename;
+
+        Object.assign(img.style, {
+          position: 'absolute',
+          left:   p.left + 'px',
+          top:    p.top  + 'px',
+          width:  p.width  + 'px',
+          height: p.height + 'px',
+          opacity: '0',
+          zIndex: '20',
+          transition: `opacity ${FADE_TIME}ms ease`
+        });
+
+        container.appendChild(img);
+
+        // Ensure the image is ready
+        if ('decode' in img) {
+          try { await img.decode(); } catch (e) {}
+        } else {
+          await new Promise(res => img.onload = res);
+        }
+
+        const batchIndex = Math.floor(index / BATCH_SIZE);
+        const plannedStart = batchIndex * FADE_DELAY;
+        const elapsed = performance.now() - t0;
+        const delay = Math.max(0, plannedStart - elapsed);
+
+        return new Promise(res => {
+          setTimeout(() => {
+            // force layout so transition applies
+            void img.offsetWidth;
+            img.style.opacity = '1';
+            res();
+          }, delay);
+        });
+      };
+
+      const tasks = placements.map((p, i) => createAndSchedule(p, i));
+      await Promise.all(tasks);
+    }
+
+    async function renderEntry(entry) {
+      clearCollage();
+      const placements = buildPlacements(entry);
+      await renderWithOverlappingBatches(placements);
+    }
+
+    function pickEntry(entries) {
+      if (!Array.isArray(entries) || !entries.length) {
+        throw new Error('window.COLLAGE_DATA is empty or missing.');
+      }
+      return PICK_MODE === 'top'
+        ? entries[0]
+        : entries[Math.floor(Math.random() * entries.length)];
+    }
+
+    // Title fitter: target 10vh tall, cap width at 85vw
+    function fitTitle() {
+      const el = titleEl;
+      if (!el) return;
+      const targetFontPx = Math.max(1, Math.round(window.innerHeight * 0.10)); // 10vh
+      const maxWidthPx   = Math.max(1, Math.round(window.innerWidth  * 0.85)); // 85vw
+      el.style.fontSize = targetFontPx + 'px';
+      for (let i = 0; i < 2; i++) {
+        const rect = el.getBoundingClientRect();
+        const curW = Math.max(1, rect.width);
+        if (curW > maxWidthPx) {
+          const scale = maxWidthPx / curW;
+          const currentPx = parseFloat(getComputedStyle(el).fontSize) || targetFontPx;
+          el.style.fontSize = (currentPx * scale) + 'px';
+        } else {
+          break;
+        }
+      }
+    }
+
+    // ---------- Precache helper ----------
+    async function precacheURLs(urls) {
+      const urlBase = location.origin + location.pathname.replace(/\/[^/]*$/, '/');
+      const imgPromises = urls
+        .filter(u => u.toLowerCase().endsWith('.png'))
+        .map(u => new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(true);
+          img.onerror = () => resolve(false);
+          img.src = (u.startsWith('http') ? u : urlBase + u);
+        }));
+      await Promise.allSettled(imgPromises);
+    }
+
+    async function boot() {
+      const preloader = document.getElementById('preloader');
+
+      // Build ribbons first so layout is stable
+      buildBottomRibbon();
+
+      // Load editable content script
+      await new Promise(res => {
+        const s = document.createElement('script');
+        s.src = 'scripts/index.js';
+        s.onload = () => res();
+        s.onerror = () => res();
+        document.body.appendChild(s);
+      });
+
+      // Pick entry and figure out what we need to preload (first N visible images)
+      const entries = (window.COLLAGE_DATA || []);
+      const entry = pickEntry(entries);
+      // Build placements once to know visibility; don't render yet
+      const placementsForPreload = buildPlacements(entry);
+      const toPreload = placementsForPreload
+        .slice(0, PRELOAD_LIMIT)
+        .map(p => IMAGES_DIR + p.filename);
+
+      // Measure precache time
+      const t0 = performance.now();
+
+      // Race precache against a hard timeout so we never hang
+      await Promise.race([
+        precacheURLs(toPreload),
+        new Promise(resolve => setTimeout(resolve, HARD_TIMEOUT_MS))
+      ]);
+
+      const dt = performance.now() - t0;
+
+      if (dt < INSTANT_HIDE_MS) {
+        // Instant: remove overlay without any fade
+        preloader.classList.add('no-transition');
+        preloader.style.opacity = '0';
+        preloader.style.visibility = 'hidden';
+        setTimeout(() => preloader.remove(), 0);
+      } else {
+        // Noticeable load: use smooth fade
+        preloader.classList.remove('no-transition');
+        preloader.classList.add('hidden');
+        setTimeout(() => preloader.remove(), 600);
+      }
+
+      // Now finish: halo, title fit, and actual render
+      applyHalo();
+      fitTitle();
+      await renderEntry(entry);
+    }
+
+    // Debounced resize re-render + refit title
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => { fitTitle(); /* re-render on resize */ boot(); }, 160);
+    });
+
+    window.addEventListener('load', boot);
+  })();
+  </script>
+</body>
+</html>
