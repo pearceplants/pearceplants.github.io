@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/" />
+  <title>Will Pearce — CV</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/images/favicon.png" sizes="32x32">
+  <link rel="icon" type="image/png" href="/images/favicon.png" sizes="16x16">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="shortcut icon" href="/images/favicon.ico">
+
+  <!-- Meta -->
+  <meta name="description" content="Will Pearce Photography">
+  <meta property="og:title" content="Will Pearce — CV">
+  <meta property="og:description" content="Will Pearce Photography">
+  <meta property="og:image" content="/images/preview.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pearceplants.com/cv/">
+
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; background:black; overflow-x:hidden; font-family:Arial, sans-serif; }
+    /* White content block between ribbons */
+    #contentSection {
+      position: relative;
+      background: #fff;
+      color: #333;
+      padding: 2rem 4vw;
+      box-sizing: border-box;
+      z-index: 200;
+      min-height: calc(100vh - 30vh); /* top ~15vh + bottom ~15vh */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .content-inner { width: 100%; max-width: 1100px; }
+    h1 { margin-top: 0; }
+    #bottomRibbon { z-index: 150; }
+  </style>
+
+  <!-- Ribbons -->
+  <script src="/config/nav.config.js"></script>
+  <script src="/scripts/ribbon.js"></script>
+  <script src="/scripts/bottomRibbon.js"></script>
+</head>
+<body>
+  <script> buildTopRibbon({ isHome: false }); </script>
+
+  <section id="contentSection">
+    <div class="content-inner">
+      <h1>Curriculum Vitae</h1>
+      <p><a href="/files/Pearce_CV.pdf" download>Download PDF</a></p>
+
+      <!-- Inline PDF viewer with fallbacks -->
+      <div id="pdfHolder" style="width:100%; height:88vh; max-height:1400px; border:1px solid #ddd; box-shadow:0 0 10px rgba(0,0,0,.08);">
+        <object data="/files/Pearce_CV.pdf#zoom=page-fit" type="application/pdf" width="100%" height="100%">
+          <embed src="/files/Pearce_CV.pdf#zoom=page-fit" type="application/pdf" width="100%" height="100%">
+            <p>Your browser can’t display the PDF inline. You can <a href="/files/Pearce_CV.pdf" download>download it here</a>.</p>
+          </embed>
+        </object>
+      </div>
+    </div>
+  </section>
+
+  <div id="bottomRibbon"></div>
+  <script> buildBottomRibbon(); </script>
+</body>
+</html>
