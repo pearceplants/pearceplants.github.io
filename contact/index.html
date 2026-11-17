@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/" />
+  <title>Will Pearce — Contact</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/images/favicon.png/" sizes="32x32">
+  <link rel="icon" type="image/png" href="/images/favicon.png/" sizes="16x16">
+  <link rel="icon" type="image/x-icon" href="/images/favicon.ico">
+  <link rel="shortcut icon" href="/images/favicon.ico">
+
+  <!-- Meta -->
+  <meta name="description" content="Will Pearce Photography">
+  <meta property="og:title" content="Will Pearce — Contact">
+  <meta property="og:description" content="Will Pearce Photography">
+  <meta property="og:image" content="/images/preview.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pearceplants.com/contact/">
+
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; background:black; overflow-x:hidden; font-family:Arial, sans-serif; }
+    /* White content block between ribbons */
+    #contentSection {
+      position: relative;
+      background: #fff;
+      color: #333;
+      padding: 2rem 4vw;
+      box-sizing: border-box;
+      z-index: 200;
+      min-height: calc(100vh - 30vh); /* top ~15vh + bottom ~15vh */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .content-inner { width: 100%; max-width: 1100px; }
+    h1 { margin-top: 0; }
+    #bottomRibbon { z-index: 150; }
+  </style>
+
+  <!-- Ribbons -->
+  <script src="/config/nav.config.js"></script>
+  <script src="/scripts/ribbon.js"></script>
+  <script src="/scripts/bottomRibbon.js"></script>
+</head>
+<body>
+  <script> buildTopRibbon({ isHome: false }); </script>
+
+  <section id="contentSection">
+    <div class="content-inner">
+      <h1>Contact</h1>
+      <p>You can contact me at <a href="mailto:pearceplants@gmail.com">pearceplants@gmail.com</a>.</p>
+      <p>If you're interested in collaborating on a research project, have questions about the use or production of my photography, or simply want to talk about <i>Ribes</i> systematics, let’s get in touch!</p>
+    </div>
+  </section>
+
+  <div id="bottomRibbon"></div>
+  <script> buildBottomRibbon(); </script>
+</body>
+</html>
